@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.partnerRecommender.name }}
+  labels:
+    app: {{ .Values.partnerRecommender.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.partnerRecommender.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.partnerRecommender.name }}
+      release: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.partnerRecommender.name }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.partnerRecommender.name }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.partnerRecommender.image.repository }}:{{ .Values.partnerRecommender.image.tag }}"
+          imagePullPolicy: {{ .Values.partnerRecommender.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment }}
+            - name: PORT
+              value: "8000"
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@{{ .Release.Name }}-redis-master:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-redis-credentials
+                  key: password
+            - name: NVIDIA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-ai-credentials
+                  key: nvidia-api-key
+            - name: FEATURE_STORE_URL
+              value: "http://{{ .Values.featureStore.name }}:{{ .Values.featureStore.service.port }}"
+            - name: FEATURE_STORE_GRPC_URL
+              value: "{{ .Values.featureStore.name }}:{{ .Values.featureStore.grpcService.port }}"
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-monitoring-credentials
+                  key: sentry-dsn
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+            - name: HUGECTR_GPU_COUNT
+              value: "1"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.partnerRecommender.resources | nindent 12 }}
+      {{- if .Values.partnerRecommender.gpuEnabled }}
+      nodeSelector:
+        {{- toYaml .Values.partnerRecommender.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.partnerRecommender.tolerations | nindent 8 }}
+      {{- end }}

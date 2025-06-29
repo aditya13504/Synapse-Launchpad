@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package feature_store;
+
+import "google/protobuf/timestamp.proto";
+
+// Feature Store gRPC Service
+service FeatureStore {
+  // Get features for online serving
+  rpc GetOnlineFeatures(OnlineFeaturesRequest) returns (OnlineFeaturesResponse);
+  
+  // Get historical features for training
+  rpc GetHistoricalFeatures(HistoricalFeaturesRequest) returns (HistoricalFeaturesResponse);
+  
+  // Write features to store
+  rpc WriteFeatures(WriteFeaturesRequest) returns (WriteFeaturesResponse);
+  
+  // Get feature statistics
+  rpc GetFeatureStats(FeatureStatsRequest) returns (FeatureStatsResponse);
+  
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Messages for online feature serving
+message OnlineFeaturesRequest {
+  repeated string company_ids = 1;
+  repeated string feature_names = 2;
+  string feature_view = 3;
+}
+
+message OnlineFeaturesResponse {
+  repeated CompanyFeatures features = 1;
+  ResponseMetadata metadata = 2;
+}
+
+// Messages for historical feature serving
+message HistoricalFeaturesRequest {
+  repeated string company_ids = 1;
+  repeated string feature_names = 2;
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
+}
+
+message HistoricalFeaturesResponse {
+  repeated CompanyFeatures features = 1;
+  ResponseMetadata metadata = 2;
+}
+
+// Messages for writing features
+message WriteFeaturesRequest {
+  repeated CompanyFeatures features = 1;
+  string feature_view = 2;
+}
+
+message WriteFeaturesResponse {
+  bool success = 1;
+  string message = 2;
+  int32 features_written = 3;
+}
+
+// Feature statistics
+message FeatureStatsRequest {
+  string feature_view = 1;
+}
+
+message FeatureStatsResponse {
+  int32 total_companies = 1;
+  int32 feature_count = 2;
+  google.protobuf.Timestamp last_updated = 3;
+  double storage_size_mb = 4;
+}
+
+// Health check
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+// Core data structures
+message CompanyFeatures {
+  string company_id = 1;
+  double user_overlap_score = 2;
+  TractionMetrics traction_metrics = 3;
+  repeated double culture_vector = 4;
+  int32 match_outcome = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message TractionMetrics {
+  double funding_amount = 1;
+  int32 employee_count = 2;
+  double growth_rate = 3;
+  double market_sentiment = 4;
+  double revenue_growth = 5;
+  double user_growth = 6;
+}
+
+message ResponseMetadata {
+  int32 feature_count = 1;
+  google.protobuf.Timestamp query_time = 2;
+  double latency_ms = 3;
+}

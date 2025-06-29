@@ -1,0 +1,119 @@
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.frontend.name }}
+  labels:
+    app: {{ .Values.frontend.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.frontend.name }}
+    release: {{ .Release.Name }}
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.api.name }}
+  labels:
+    app: {{ .Values.api.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.api.service.type }}
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.api.name }}
+    release: {{ .Release.Name }}
+---
+# Partner Recommender Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.partnerRecommender.name }}
+  labels:
+    app: {{ .Values.partnerRecommender.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.partnerRecommender.service.type }}
+  ports:
+    - port: {{ .Values.partnerRecommender.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.partnerRecommender.name }}
+    release: {{ .Release.Name }}
+---
+# Campaign Generator Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.campaignGenerator.name }}
+  labels:
+    app: {{ .Values.campaignGenerator.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.campaignGenerator.service.type }}
+  ports:
+    - port: {{ .Values.campaignGenerator.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.campaignGenerator.name }}
+    release: {{ .Release.Name }}
+---
+# Feature Store Service (HTTP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.featureStore.name }}
+  labels:
+    app: {{ .Values.featureStore.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.featureStore.service.type }}
+  ports:
+    - port: {{ .Values.featureStore.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.featureStore.name }}
+    release: {{ .Release.Name }}
+---
+# Feature Store Service (gRPC)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.featureStore.name }}-grpc
+  labels:
+    app: {{ .Values.featureStore.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  type: {{ .Values.featureStore.grpcService.type }}
+  ports:
+    - port: {{ .Values.featureStore.grpcService.port }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app: {{ .Values.featureStore.name }}
+    release: {{ .Release.Name }}

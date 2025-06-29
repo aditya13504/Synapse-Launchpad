@@ -1,0 +1,358 @@
+# =============================================================================
+# 21ST.DEV CONFIGURATION FILE
+# =============================================================================
+# Configuration for deploying Synapse LaunchPad to 21st.dev platform
+
+name: synapse-launchpad
+version: 1.0.0
+description: AI-powered startup matchmaking platform with behavioral science optimization
+
+# =============================================================================
+# SERVICES CONFIGURATION
+# =============================================================================
+services:
+  # Frontend - Next.js Application
+  frontend:
+    type: nextjs
+    build:
+      command: pnpm build --filter=@synapse/web
+      output: apps/web/.next
+      node_version: 18
+    runtime:
+      memory: 512MB
+      cpu: 0.5
+    env:
+      - NEXT_PUBLIC_API_URL
+      - NEXT_PUBLIC_SENTRY_DSN
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+      - NEXT_PUBLIC_REVENUECAT_PUBLIC_KEY
+      - NEXT_PUBLIC_ENABLE_ANALYTICS
+      - NEXT_PUBLIC_ENABLE_BETA_FEATURES
+    domains:
+      - synapse-launchpad.com
+      - www.synapse-launchpad.com
+    health_check:
+      path: /api/health
+      interval: 30s
+      timeout: 10s
+
+  # API Gateway
+  api:
+    type: nodejs
+    build:
+      command: pnpm build --filter=@synapse/api
+      output: services/api/dist
+      node_version: 18
+    runtime:
+      memory: 1GB
+      cpu: 1
+      instances: 2
+    env:
+      - DATABASE_URL
+      - REDIS_URL
+      - JWT_SECRET
+      - CRUNCHBASE_KEY
+      - LINKEDIN_TOKEN
+      - NEWSAPI_KEY
+      - STRIPE_SECRET
+      - STRIPE_WEBHOOK_SECRET
+      - REVENUECAT_SECRET_KEY
+      - SENTRY_DSN
+      - ML_PARTNER_MATCHING_URL
+      - ML_CAMPAIGN_GENERATOR_URL
+      - ANALYTICS_URL
+      - DATA_PIPELINE_URL
+    health_check:
+      path: /health
+      interval: 30s
+      timeout: 10s
+
+  # ML Partner Matching Service
+  ml-partner-matching:
+    type: python
+    python_version: 3.11
+    build:
+      command: pip install -r requirements.txt
+      output: services/ml-partner-matching
+    runtime:
+      memory: 2GB
+      cpu: 2
+      gpu: true  # Enable GPU for ML workloads
+    env:
+      - REDIS_URL
+      - NVIDIA_API_KEY
+      - NVIDIA_MERLIN_CONFIG
+      - CRUNCHBASE_KEY
+      - LINKEDIN_TOKEN
+      - SENTRY_DSN
+      - MODEL_UPDATE_INTERVAL
+      - BATCH_SIZE
+      - EMBEDDING_DIMENSION
+      - SIMILARITY_THRESHOLD
+    health_check:
+      path: /health
+      interval: 60s
+      timeout: 30s
+
+  # ML Campaign Generator Service
+  ml-campaign-generator:
+    type: python
+    python_version: 3.11
+    build:
+      command: pip install -r requirements.txt
+      output: services/ml-campaign-generator
+    runtime:
+      memory: 1GB
+      cpu: 1
+    env:
+      - REDIS_URL
+      - OPENAI_API_KEY
+      - OPENAI_MODEL
+      - OPENAI_MAX_TOKENS
+      - SENTRY_DSN
+      - DEFAULT_TEMPERATURE
+      - MAX_CAMPAIGN_VARIANTS
+      - PSYCHOLOGICAL_TRIGGERS_ENABLED
+    health_check:
+      path: /health
+      interval: 30s
+      timeout: 15s
+
+  # Data Pipeline Service
+  data-pipeline:
+    type: python
+    python_version: 3.11
+    build:
+      command: pip install -r requirements.txt
+      output: services/data-pipeline
+    runtime:
+      memory: 1GB
+      cpu: 1
+    env:
+      - DATABASE_URL
+      - REDIS_URL
+      - CRUNCHBASE_KEY
+      - LINKEDIN_TOKEN
+      - NEWSAPI_KEY
+      - SENTRY_DSN
+      - DATA_REFRESH_INTERVAL
+      - BATCH_SIZE
+      - MAX_RETRIES
+    schedule:
+      - cron: "0 */6 * * *"  # Run every 6 hours
+        command: python data_ingestion.py
+
+  # Analytics Service
+  analytics:
+    type: python
+    python_version: 3.11
+    build:
+      command: pip install -r requirements.txt
+      output: services/analytics
+    runtime:
+      memory: 1GB
+      cpu: 1
+    env:
+      - DATABASE_URL
+      - REDIS_URL
+      - SENTRY_DSN
+      - RETENTION_DAYS
+      - AGGREGATION_INTERVAL
+      - REAL_TIME_ENABLED
+    health_check:
+      path: /health
+      interval: 30s
+      timeout: 10s
+
+# =============================================================================
+# DATABASES CONFIGURATION
+# =============================================================================
+databases:
+  postgres:
+    type: postgresql
+    version: 15
+    storage: 20GB
+    backup:
+      enabled: true
+      retention: 30d
+      schedule: "0 2 * * *"  # Daily at 2 AM
+    monitoring:
+      enabled: true
+      alerts:
+        - type: cpu_usage
+          threshold: 80
+        - type: memory_usage
+          threshold: 85
+        - type: storage_usage
+          threshold: 90
+
+  redis:
+    type: redis
+    version: 7
+    memory: 1GB
+    persistence: true
+    monitoring:
+      enabled: true
+
+# =============================================================================
+# NETWORKING CONFIGURATION
+# =============================================================================
+networking:
+  load_balancer:
+    enabled: true
+    ssl: true
+    redirect_http: true
+  
+  cdn:
+    enabled: true
+    cache_policy: aggressive
+    
+  firewall:
+    enabled: true
+    rules:
+      - port: 80
+        protocol: tcp
+        source: 0.0.0.0/0
+      - port: 443
+        protocol: tcp
+        source: 0.0.0.0/0
+
+# =============================================================================
+# MONITORING & OBSERVABILITY
+# =============================================================================
+monitoring:
+  metrics:
+    enabled: true
+    retention: 30d
+    
+  logs:
+    enabled: true
+    retention: 7d
+    level: info
+    
+  alerts:
+    - name: high_error_rate
+      condition: error_rate > 5%
+      duration: 5m
+      channels: [email, slack]
+      
+    - name: high_response_time
+      condition: avg_response_time > 2s
+      duration: 5m
+      channels: [email]
+      
+    - name: service_down
+      condition: health_check_failed
+      duration: 1m
+      channels: [email, slack, sms]
+
+# =============================================================================
+# TESTING CONFIGURATION
+# =============================================================================
+testing:
+  e2e:
+    enabled: true
+    framework: playwright
+    command: pnpm test:e2e
+    artifacts:
+      - name: test-report
+        path: playwright-report/
+        type: html
+      - name: test-results
+        path: test-results/
+        type: json
+    notifications:
+      on_failure: [email, slack]
+      on_success: [slack]
+    schedule:
+      - cron: "0 0 * * *"  # Daily at midnight
+        branch: main
+
+# =============================================================================
+# SCALING CONFIGURATION
+# =============================================================================
+scaling:
+  auto_scaling:
+    enabled: true
+    min_instances: 1
+    max_instances: 10
+    target_cpu: 70
+    target_memory: 80
+    
+  horizontal_scaling:
+    enabled: true
+    services: [api, ml-partner-matching, ml-campaign-generator]
+
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+security:
+  secrets:
+    encryption: aes-256
+    rotation:
+      enabled: true
+      schedule: quarterly
+      
+  access_control:
+    rbac: true
+    mfa: true
+    
+  compliance:
+    gdpr: true
+    soc2: true
+    
+  vulnerability_scanning:
+    enabled: true
+    schedule: weekly
+
+# =============================================================================
+# BACKUP & DISASTER RECOVERY
+# =============================================================================
+backup:
+  databases:
+    enabled: true
+    schedule: daily
+    retention: 30d
+    
+  application_data:
+    enabled: true
+    schedule: daily
+    retention: 7d
+    
+disaster_recovery:
+  enabled: true
+  rto: 4h  # Recovery Time Objective
+  rpo: 1h  # Recovery Point Objective
+  
+# =============================================================================
+# ENVIRONMENTS
+# =============================================================================
+environments:
+  staging:
+    inherit: true
+    overrides:
+      services:
+        frontend:
+          domains: [staging.synapse-launchpad.com]
+        api:
+          runtime:
+            instances: 1
+      databases:
+        postgres:
+          storage: 5GB
+      testing:
+        e2e:
+          schedule:
+            - cron: "0 */6 * * *"  # Every 6 hours
+              branch: develop
+          
+  production:
+    inherit: true
+    overrides:
+      monitoring:
+        alerts:
+          channels: [email, slack, pagerduty]
+      scaling:
+        auto_scaling:
+          min_instances: 2
+          max_instances: 20

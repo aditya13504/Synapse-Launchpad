@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.featureStore.name }}
+  labels:
+    app: {{ .Values.featureStore.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.featureStore.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.featureStore.name }}
+      release: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.featureStore.name }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.featureStore.name }}
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.featureStore.image.repository }}:{{ .Values.featureStore.image.tag }}"
+          imagePullPolicy: {{ .Values.featureStore.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment }}
+            - name: REST_PORT
+              value: "8000"
+            - name: GRPC_PORT
+              value: "50051"
+            - name: DATABASE_URL
+              value: "postgresql://postgres:$(DATABASE_PASSWORD)@{{ .Release.Name }}-postgresql:5432/synapse_db"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-db-credentials
+                  key: password
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@{{ .Release.Name }}-redis-master:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-redis-credentials
+                  key: password
+            - name: SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: synapse-monitoring-credentials
+                  key: sentry-dsn
+            - name: FEATURE_STORE_PATH
+              value: "/data/feature_store"
+            - name: EMBEDDING_DIM
+              value: "128"
+            - name: CUDA_VISIBLE_DEVICES
+              value: "0"
+          volumeMounts:
+            - name: feature-store-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.featureStore.resources | nindent 12 }}
+      volumes:
+        - name: feature-store-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.featureStore.name }}-data
+      {{- if .Values.featureStore.gpuEnabled }}
+      nodeSelector:
+        {{- toYaml .Values.featureStore.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.featureStore.tolerations | nindent 8 }}
+      {{- end }}

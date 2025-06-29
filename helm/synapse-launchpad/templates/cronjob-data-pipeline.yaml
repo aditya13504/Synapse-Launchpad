@@ -1,0 +1,83 @@
+{{- if .Values.dataPipeline.cronJob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.dataPipeline.name }}
+  labels:
+    app: {{ .Values.dataPipeline.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  schedule: {{ .Values.dataPipeline.cronJob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: {{ .Values.dataPipeline.name }}
+            release: {{ .Release.Name }}
+        spec:
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: {{ .Values.dataPipeline.name }}
+              image: "{{ .Values.global.imageRegistry }}/{{ .Values.dataPipeline.image.repository }}:{{ .Values.dataPipeline.image.tag }}"
+              imagePullPolicy: {{ .Values.dataPipeline.image.pullPolicy }}
+              env:
+                - name: ENVIRONMENT
+                  value: {{ .Values.global.environment }}
+                - name: DATABASE_URL
+                  value: "postgresql://postgres:$(DATABASE_PASSWORD)@{{ .Release.Name }}-postgresql:5432/synapse_db"
+                - name: DATABASE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-db-credentials
+                      key: password
+                - name: REDIS_URL
+                  value: "redis://:$(REDIS_PASSWORD)@{{ .Release.Name }}-redis-master:6379"
+                - name: REDIS_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-redis-credentials
+                      key: password
+                - name: CRUNCHBASE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-api-credentials
+                      key: crunchbase-key
+                - name: LINKEDIN_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-api-credentials
+                      key: linkedin-token
+                - name: NEWSAPI_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-api-credentials
+                      key: newsapi-key
+                - name: SENTRY_DSN
+                  valueFrom:
+                    secretKeyRef:
+                      name: synapse-monitoring-credentials
+                      key: sentry-dsn
+              resources:
+                {{- toYaml .Values.dataPipeline.resources | nindent 16 }}
+          restartPolicy: OnFailure
+          {{- with .Values.dataPipeline.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.dataPipeline.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.dataPipeline.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

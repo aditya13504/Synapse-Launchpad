@@ -1,0 +1,35 @@
+# =============================================================================
+# DOCKER COMPOSE GPU CONFIGURATION
+# =============================================================================
+# Additional configuration for GPU-enabled services
+
+version: '3.8'
+
+services:
+  # Partner Recommender with GPU support
+  partner-recommender:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Feature Store with GPU support for Merlin
+  feature-store:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

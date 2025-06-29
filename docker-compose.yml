@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # Frontend - Next.js Application
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://api:8000
+      - NEXT_PUBLIC_SENTRY_DSN=${SENTRY_DSN}
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - api
+      - redis
+    networks:
+      - synapse-network
+
+  # API Gateway / Main Backend
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/synapse_db
+      - REDIS_URL=redis://redis:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - ./services/api:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - synapse-network
+
+  # ML Services - Partner Matching Engine
+  ml-partner-matching:
+    build:
+      context: .
+      dockerfile: services/ml-partner-matching/Dockerfile
+    ports:
+      - "8001:8000"
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_URL=redis://redis:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+      - NVIDIA_MERLIN_CONFIG=${NVIDIA_MERLIN_CONFIG}
+    volumes:
+      - ./services/ml-partner-matching:/app
+      - ./data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - synapse-network
+
+  # ML Services - Campaign Generation
+  ml-campaign-generator:
+    build:
+      context: .
+      dockerfile: services/ml-campaign-generator/Dockerfile
+    ports:
+      - "8002:8000"
+    environment:
+      - ENVIRONMENT=development
+      - REDIS_URL=redis://redis:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./services/ml-campaign-generator:/app
+    depends_on:
+      - redis
+    networks:
+      - synapse-network
+
+  # Data Pipeline Service
+  data-pipeline:
+    build:
+      context: .
+      dockerfile: services/data-pipeline/Dockerfile
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/synapse_db
+      - REDIS_URL=redis://redis:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+      - CRUNCHBASE_API_KEY=${CRUNCHBASE_API_KEY}
+    volumes:
+      - ./services/data-pipeline:/app
+      - ./data:/app/data
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - synapse-network
+
+  # Analytics Service
+  analytics:
+    build:
+      context: .
+      dockerfile: services/analytics/Dockerfile
+    ports:
+      - "8003:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/synapse_db
+      - REDIS_URL=redis://redis:6379
+      - SENTRY_DSN=${SENTRY_DSN}
+    volumes:
+      - ./services/analytics:/app
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - synapse-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=synapse_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - synapse-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - synapse-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - api
+    networks:
+      - synapse-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  synapse-network:
+    driver: bridge

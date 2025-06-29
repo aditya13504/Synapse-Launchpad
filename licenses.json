@@ -1,0 +1,9 @@
+{
+  "synapse-launchpad@1.0.0": {
+    "licenses": "UNLICENSED",
+    "private": true,
+    "path": "/home/project",
+    "licenseFile": "/home/project/LICENSE"
+  }
+}
+

@@ -1,0 +1,16 @@
+# Persistent Volume Claim for Feature Store
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.featureStore.name }}-data
+  labels:
+    app: {{ .Values.featureStore.name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    release: {{ .Release.Name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: standard
